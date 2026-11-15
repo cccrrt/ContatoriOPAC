@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Contatori BNCF">
     <title>Contatori BNCF</title>
-    <!-- Caricamento Tailwind CSS (verrà salvato in cache dal Service Worker al primo avvio) -->
+    <!-- Caricamento Tailwind CSS (salvato in cache dal Service Worker sw.js al primo avvio) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Impostazioni base per font di sistema (zero dipendenze esterne) e comportamento touch */
@@ -586,7 +586,7 @@
 
         /**
          * Inizializzazione PWA: crea Manifest dinamico con icona vettoriale,
-         * registra Service Worker per il caching offline completo e gestisce il prompt di installazione.
+         * registra il Service Worker esterno (sw.js) e gestisce il prompt di installazione.
          */
         function setupPWA() {
             // Solo su protocolli web (http/https)
@@ -634,64 +634,13 @@
             manifestLink.href = URL.createObjectURL(manifestBlob);
             document.head.appendChild(manifestLink);
 
-            // 3. Service Worker inline per salvare pagina e Tailwind CSS in cache offline
+            // 3. Registrazione Service Worker esterno (sw.js)
             if ('serviceWorker' in navigator) {
-                const swCode = `
-                    const CACHE_NAME = 'contatori-bncf-pwa-v1';
-                    const APP_URL = ${JSON.stringify(window.location.href)};
-                    const TAILWIND_URL = 'https://cdn.tailwindcss.com';
-
-                    self.addEventListener('install', (event) => {
-                        event.waitUntil(
-                            caches.open(CACHE_NAME).then((cache) => {
-                                return Promise.allSettled([
-                                    cache.add(APP_URL),
-                                    cache.add(TAILWIND_URL)
-                                ]);
-                            }).then(() => self.skipWaiting())
-                        );
-                    });
-
-                    self.addEventListener('activate', (event) => {
-                        event.waitUntil(
-                            caches.keys().then((keys) => Promise.all(
-                                keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
-                            )).then(() => self.clients.claim())
-                        );
-                    });
-
-                    self.addEventListener('fetch', (event) => {
-                        if (event.request.method !== 'GET') return;
-                        event.respondWith(
-                            caches.match(event.request).then((cachedResponse) => {
-                                if (cachedResponse) {
-                                    // Aggiorna la cache in background se c'è rete
-                                    fetch(event.request).then((networkResponse) => {
-                                        if (networkResponse && networkResponse.ok) {
-                                            caches.open(CACHE_NAME).then(c => c.put(event.request, networkResponse));
-                                        }
-                                    }).catch(() => {});
-                                    return cachedResponse;
-                                }
-                                return fetch(event.request).then((networkResponse) => {
-                                    if (networkResponse && networkResponse.ok) {
-                                        const clone = networkResponse.clone();
-                                        caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
-                                    }
-                                    return networkResponse;
-                                });
-                            })
-                        );
-                    });
-                `;
-
-                const swBlob = new Blob([swCode], { type: 'application/javascript' });
-                const swUrl = URL.createObjectURL(swBlob);
-
-                navigator.serviceWorker.register(swUrl)
-                    .then(() => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then((reg) => {
                         const badge = document.getElementById('offline-badge');
                         if (badge) badge.classList.remove('hidden');
+                        if (reg.update) reg.update();
                     })
                     .catch(err => console.warn('Service Worker non registrato:', err));
             }
