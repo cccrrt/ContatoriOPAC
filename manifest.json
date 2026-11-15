@@ -1,0 +1,28 @@
+{
+  "id": "/ContatoriOPAC/",
+  "name": "Contatori BNCF",
+  "short_name": "Contatori BNCF",
+  "description": "Conteggio rapido offline per catalogazione e verifica OPAC BNCF",
+  "start_url": "/ContatoriOPAC/index.html",
+  "scope": "/ContatoriOPAC/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f6f8",
+  "theme_color": "#0f172a",
+  "lang": "it",
+  "categories": ["utilities", "productivity"],
+  "icons": [
+    {
+      "src": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%20512%20512%27%3E%3Crect%20width%3D%27512%27%20height%3D%27512%27%20rx%3D%27112%27%20fill%3D%27%230f172a%27%2F%3E%3Crect%20x%3D%2764%27%20y%3D%2764%27%20width%3D%27384%27%20height%3D%27384%27%20rx%3D%2780%27%20fill%3D%27%231e293b%27%20stroke%3D%27%23334155%27%20stroke-width%3D%278%27%2F%3E%3Ctext%20x%3D%27256%27%20y%3D%27235%27%20font-family%3D%27sans-serif%27%20font-size%3D%27110%27%20font-weight%3D%27800%27%20fill%3D%27%2334d399%27%20text-anchor%3D%27middle%27%3E%2B1%3C%2Ftext%3E%3Ctext%20x%3D%27256%27%20y%3D%27345%27%20font-family%3D%27sans-serif%27%20font-size%3D%2768%27%20font-weight%3D%27700%27%20fill%3D%27%23f8fafc%27%20text-anchor%3D%27middle%27%3EBNCF%3C%2Ftext%3E%3C%2Fsvg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%20512%20512%27%3E%3Crect%20width%3D%27512%27%20height%3D%27512%27%20fill%3D%27%230f172a%27%2F%3E%3Ctext%20x%3D%27256%27%20y%3D%27235%27%20font-family%3D%27sans-serif%27%20font-size%3D%27110%27%20font-weight%3D%27800%27%20fill%3D%27%2334d399%27%20text-anchor%3D%27middle%27%3E%2B1%3C%2Ftext%3E%3Ctext%20x%3D%27256%27%20y%3D%27345%27%20font-family%3D%27sans-serif%27%20font-size%3D%2768%27%20font-weight%3D%27700%27%20fill%3D%27%23f8fafc%27%20text-anchor%3D%27middle%27%3EBNCF%3C%2Ftext%3E%3C%2Fsvg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

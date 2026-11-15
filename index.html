@@ -7,6 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Contatori BNCF">
+    <link rel="manifest" href="./manifest.json">
     <title>Contatori BNCF</title>
     <!-- Caricamento Tailwind CSS (salvato in cache dal Service Worker sw.js al primo avvio) -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -585,56 +586,26 @@
         }
 
         /**
-         * Inizializzazione PWA: crea Manifest dinamico con icona vettoriale,
-         * registra il Service Worker esterno (sw.js) e gestisce il prompt di installazione.
+         * Inizializzazione PWA: collega l'icona Apple, registra il Service Worker esterno (sw.js)
+         * e gestisce il prompt di installazione nativo.
          */
         function setupPWA() {
             // Solo su protocolli web (http/https)
             if (!window.location.protocol.startsWith('http')) return;
 
-            // 1. Icona SVG integrata per la schermata Home di Android
+            // 1. Icona SVG per dispositivi Apple/Safari
             const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
                 <rect width="512" height="512" rx="112" fill="#0f172a"/>
                 <rect x="64" y="64" width="384" height="384" rx="80" fill="#1e293b" stroke="#334155" stroke-width="8"/>
                 <text x="256" y="235" font-family="sans-serif" font-size="110" font-weight="800" fill="#34d399" text-anchor="middle">+1</text>
                 <text x="256" y="345" font-family="sans-serif" font-size="68" font-weight="700" fill="#f8fafc" text-anchor="middle">BNCF</text>
             </svg>`;
-            const iconUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgIcon);
-
-            // Aggiunge icona Apple/Android
             const appleIcon = document.createElement('link');
             appleIcon.rel = 'apple-touch-icon';
-            appleIcon.href = iconUrl;
+            appleIcon.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgIcon);
             document.head.appendChild(appleIcon);
 
-            // 2. Web App Manifest dinamico (rende l'app installabile a schermo intero senza barra browser)
-            const manifest = {
-                name: 'Contatori BNCF',
-                short_name: 'Contatori BNCF',
-                description: 'Conteggio rapido per catalogazione e verifica OPAC BNCF',
-                start_url: window.location.href,
-                scope: window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1),
-                display: 'standalone',
-                orientation: 'portrait',
-                background_color: '#f4f6f8',
-                theme_color: '#0f172a',
-                icons: [
-                    {
-                        src: iconUrl,
-                        sizes: '512x512',
-                        type: 'image/svg+xml',
-                        purpose: 'any maskable'
-                    }
-                ]
-            };
-
-            const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
-            const manifestLink = document.createElement('link');
-            manifestLink.rel = 'manifest';
-            manifestLink.href = URL.createObjectURL(manifestBlob);
-            document.head.appendChild(manifestLink);
-
-            // 3. Registrazione Service Worker esterno (sw.js)
+            // 2. Registrazione Service Worker esterno (sw.js)
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.register('./sw.js')
                     .then((reg) => {
@@ -645,7 +616,7 @@
                     .catch(err => console.warn('Service Worker non registrato:', err));
             }
 
-            // 4. Gestione pulsante nativo "Installa App" su Chrome Android
+            // 3. Gestione pulsante nativo "Installa App" su Chrome Android
             const installBtn = document.getElementById('btn-install-pwa');
             window.addEventListener('beforeinstallprompt', (e) => {
                 e.preventDefault();

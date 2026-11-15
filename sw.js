@@ -1,7 +1,8 @@
-const CACHE_NAME = 'contatori-bncf-v2';
+const CACHE_NAME = 'contatori-bncf-v3';
 const ASSETS = [
     './',
     './index.html',
+    './manifest.json',
     'https://cdn.tailwindcss.com'
 ];
 
