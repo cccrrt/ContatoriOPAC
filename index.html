@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Contatori BNCF">
+    <title>Contatori BNCF</title>
+    <!-- Caricamento Tailwind CSS (verrà salvato in cache dal Service Worker al primo avvio) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Impostazioni base per font di sistema (zero dipendenze esterne) e comportamento touch */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f6f8;
+            color: #0f172a;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        /* Animazione leggera quando il numero viene aggiornato */
+        @keyframes popNumber {
+            0% { transform: scale(1); }
+            45% { transform: scale(1.22); color: #0284c7; }
+            100% { transform: scale(1); }
+        }
+
+        .animate-pop {
+            animation: popNumber 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* Effetto pressione tattile sui pulsanti */
+        .btn-press {
+            transition: transform 0.08s ease, background-color 0.15s ease, opacity 0.15s ease;
+            touch-action: manipulation;
+        }
+        .btn-press:active:not(:disabled) {
+            transform: scale(0.94);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col pb-24">
+
+    <!-- Intestazione fissa con Totale Generale -->
+    <header class="sticky top-0 z-20 bg-slate-900 text-white shadow-md px-4 py-3.5">
+        <div class="max-w-lg mx-auto flex items-center justify-between gap-2">
+            <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                    <h1 class="text-lg font-bold tracking-tight leading-tight truncate">Contatori BNCF</h1>
+                    <span id="offline-badge" class="hidden text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        Offline Ready
+                    </span>
+                </div>
+                <p class="text-xs text-slate-400">Salvataggio automatico locale</p>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                <!-- Pulsante Installa App (visibile automaticamente su Chrome/Android da HTTPS) -->
+                <button id="btn-install-pwa" type="button"
+                    class="hidden btn-press items-center gap-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    <span>Installa</span>
+                </button>
+                <div class="bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-1.5 text-right">
+                    <span class="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Totale Generale</span>
+                    <span id="grand-total" class="text-2xl font-extrabold text-emerald-400 tabular-nums leading-none">0</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenuto principale con i 7 contatori -->
+    <main class="flex-1 w-full max-w-lg mx-auto px-3.5 pt-4 space-y-4">
+
+        <!-- SEZIONE 1: Gruppo In OPAC BNCF -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+            <!-- Intestazione sezione con subtotale -->
+            <div class="bg-slate-100/90 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+                <h2 class="text-base font-bold text-slate-800 tracking-tight">In OPAC BNCF</h2>
+                <div class="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+                    <span class="text-xs font-medium text-slate-500">Subtotale:</span>
+                    <span id="opac-bncf-subtotal" class="text-sm font-bold text-slate-900 tabular-nums">0</span>
+                </div>
+            </div>
+
+            <!-- Lista delle 3 sottovoci -->
+            <div id="group-opac-bncf" class="divide-y divide-slate-100">
+                <!-- Popolato dinamicamente via JS -->
+            </div>
+        </section>
+
+        <!-- SEZIONE 2: Categorie principali -->
+        <section id="group-main" class="space-y-3">
+            <!-- Popolato dinamicamente via JS -->
+        </section>
+
+    </main>
+
+    <!-- Barra inferiore fissa per azioni globali (Azzera, Importa CSV, Esporta CSV) -->
+    <footer class="fixed bottom-0 inset-x-0 z-20 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.04)]">
+        <div class="max-w-lg mx-auto flex items-center gap-2">
+            <!-- Pulsante Azzera tutto -->
+            <button id="btn-reset-open" type="button"
+                class="btn-press flex-1 flex items-center justify-center gap-1.5 py-3 px-2.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 font-semibold text-xs sm:text-sm hover:bg-rose-100 focus:outline-none">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span>Azzera</span>
+            </button>
+
+            <!-- Input file nascosto per importazione CSV -->
+            <input type="file" id="csv-file-input" accept=".csv,text/csv" class="hidden" />
+
+            <!-- Pulsante Importa / Ripristina CSV -->
+            <button id="btn-import-csv" type="button"
+                class="btn-press flex-[1.2] flex items-center justify-center gap-1.5 py-3 px-2.5 rounded-xl border border-sky-200 bg-sky-50 text-sky-800 font-semibold text-xs sm:text-sm hover:bg-sky-100 focus:outline-none">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                <span>Importa CSV</span>
+            </button>
+
+            <!-- Pulsante Esporta CSV -->
+            <button id="btn-export-csv" type="button"
+                class="btn-press flex-[1.2] flex items-center justify-center gap-1.5 py-3 px-2.5 rounded-xl bg-slate-900 text-white font-semibold text-xs sm:text-sm shadow-sm hover:bg-slate-800 focus:outline-none">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <span>Esporta CSV</span>
+            </button>
+        </div>
+    </footer>
+
+    <!-- Modale personalizzata di conferma azzeramento -->
+    <div id="reset-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs transition-opacity">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-xl border border-slate-100 transform transition-all" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+            <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                </div>
+                <h3 id="modal-title" class="text-lg font-bold text-slate-900">Azzerare tutti i contatori?</h3>
+            </div>
+            <p class="text-sm text-slate-600 mb-5 leading-relaxed">
+                Tutti i 7 conteggi verranno riportati a <strong class="text-slate-900">0</strong>. L'operazione non può essere annullata (consigliamo di esportare prima il CSV).
+            </p>
+            <div class="flex items-center gap-3">
+                <button id="btn-reset-cancel" type="button"
+                    class="btn-press flex-1 py-3 px-4 rounded-xl bg-slate-100 text-slate-700 font-semibold text-sm hover:bg-slate-200">
+                    Annulla
+                </button>
+                <button id="btn-reset-confirm" type="button"
+                    class="btn-press flex-1 py-3 px-4 rounded-xl bg-rose-600 text-white font-semibold text-sm shadow-sm hover:bg-rose-700">
+                    Sì, azzera
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale personalizzata di anteprima e conferma ripristino da CSV -->
+    <div id="import-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs transition-opacity">
+        <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-xl border border-slate-100 flex flex-col max-h-[88vh]" role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
+            <div class="flex items-center gap-3 mb-2 shrink-0">
+                <div class="w-10 h-10 rounded-full bg-sky-100 text-sky-600 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 id="import-modal-title" class="text-lg font-bold text-slate-900 leading-tight">Ripristina da CSV</h3>
+                    <p id="import-filename" class="text-xs text-slate-500 truncate max-w-[230px]">file.csv</p>
+                </div>
+            </div>
+
+            <p class="text-xs text-slate-600 mb-3 leading-relaxed shrink-0">
+                Verifica i conteggi letti dal file. Confermando, i valori attuali verranno sovrascritti:
+            </p>
+
+            <!-- Tabella comparativa Attuale vs Nuovo -->
+            <div class="overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 mb-4 bg-slate-50/50">
+                <div class="grid grid-cols-12 px-3 py-2 bg-slate-100 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <div class="col-span-6">Categoria</div>
+                    <div class="col-span-3 text-right">Attuale</div>
+                    <div class="col-span-3 text-right text-sky-700">Nuovo</div>
+                </div>
+                <div id="import-preview-list" class="divide-y divide-slate-100 text-xs">
+                    <!-- Popolato dinamicamente dal parser CSV -->
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3 shrink-0">
+                <button id="btn-import-cancel" type="button"
+                    class="btn-press flex-1 py-3 px-4 rounded-xl bg-slate-100 text-slate-700 font-semibold text-sm hover:bg-slate-200">
+                    Annulla
+                </button>
+                <button id="btn-import-confirm" type="button"
+                    class="btn-press flex-1 py-3 px-4 rounded-xl bg-sky-600 text-white font-semibold text-sm shadow-sm hover:bg-sky-700">
+                    Conferma ripristino
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notifica Toast per feedback azioni (es. CSV scaricato o errore) -->
+    <div id="toast" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-opacity duration-200 bg-slate-800 text-white text-xs font-semibold px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2 max-w-[90vw]">
+        <span id="toast-dot" class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+        <span id="toast-message" class="truncate">Operazione completata</span>
+    </div>
+
+    <script>
+        /**
+         * Configurazione delle 7 categorie esattamente nell'ordine della schermata richiesta.
+         */
+        const CATEGORIES = [
+            { id: 'opac_bncf_collocazione', label: 'con collocazione', group: 'opac_bncf', csvName: 'In OPAC BNCF - con collocazione' },
+            { id: 'opac_bncf_mancanti', label: 'con collocazione e mancanti', group: 'opac_bncf', csvName: 'In OPAC BNCF - con collocazione e mancanti' },
+            { id: 'opac_bncf_senza', label: 'senza collocazione', group: 'opac_bncf', csvName: 'In OPAC BNCF - senza collocazione' },
+            { id: 'in_opac', label: 'In OPAC', group: 'main', csvName: 'In OPAC' },
+            { id: 'in_cartaceo', label: 'In cartaceo', group: 'main', csvName: 'In cartaceo' },
+            { id: 'in_magliabechiano', label: 'In magliabechiano', group: 'main', csvName: 'In magliabechiano' },
+            { id: 'sconosciuti', label: 'Sconosciuti', group: 'main', csvName: 'Sconosciuti' }
+        ];
+
+        const STORAGE_KEY = 'bncf_contatori_v1';
+        let counts = {};
+        let pendingImportCounts = null;
+        let toastTimeout = null;
+        let deferredInstallPrompt = null;
+
+        /**
+         * Carica i dati salvati dal localStorage del dispositivo.
+         */
+        function loadCounts() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                const parsed = raw ? JSON.parse(raw) : {};
+                CATEGORIES.forEach(cat => {
+                    const val = parseInt(parsed[cat.id], 10);
+                    counts[cat.id] = (!isNaN(val) && val >= 0) ? val : 0;
+                });
+            } catch (e) {
+                console.warn('Errore lettura localStorage, inizializzo a 0:', e);
+                CATEGORIES.forEach(cat => { counts[cat.id] = 0; });
+            }
+        }
+
+        /**
+         * Salva istantaneamente i contatori nel localStorage.
+         */
+        function saveCounts() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(counts));
+            } catch (e) {
+                showToast('Attenzione: impossibile salvare in memoria', true);
+            }
+        }
+
+        /**
+         * Costruisce l'interfaccia HTML per i 7 contatori.
+         */
+        function renderUI() {
+            const groupOpacEl = document.getElementById('group-opac-bncf');
+            const groupMainEl = document.getElementById('group-main');
+
+            groupOpacEl.innerHTML = '';
+            groupMainEl.innerHTML = '';
+
+            CATEGORIES.forEach(cat => {
+                const val = counts[cat.id] || 0;
+                const isSubItem = cat.group === 'opac_bncf';
+
+                const row = document.createElement('div');
+                row.className = isSubItem
+                    ? 'px-4 py-3.5 flex items-center justify-between gap-3 bg-white'
+                    : 'bg-white rounded-2xl shadow-sm border border-slate-200/80 px-4 py-3.5 flex items-center justify-between gap-3';
+
+                row.innerHTML = `
+                    <div class="flex-1 min-w-0 pr-1">
+                        <div class="flex items-center gap-1.5">
+                            ${isSubItem ? '<span class="text-slate-400 font-bold text-sm">–</span>' : ''}
+                            <span class="text-[15px] sm:text-base font-bold text-slate-800 leading-snug break-words">${cat.label}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2.5 shrink-0">
+                        <button type="button"
+                            data-id="${cat.id}"
+                            data-delta="-1"
+                            aria-label="Diminuisci ${cat.label}"
+                            ${val === 0 ? 'disabled' : ''}
+                            class="counter-btn btn-press w-12 h-12 rounded-xl border border-slate-200 bg-slate-100 text-slate-700 font-bold text-xl flex items-center justify-center hover:bg-slate-200 disabled:opacity-35 disabled:pointer-events-none">
+                            −
+                        </button>
+
+                        <span id="val-${cat.id}" class="w-11 text-center text-2xl font-extrabold text-slate-900 tabular-nums select-none">
+                            ${val}
+                        </span>
+
+                        <button type="button"
+                            data-id="${cat.id}"
+                            data-delta="1"
+                            aria-label="Aumenta ${cat.label}"
+                            class="counter-btn btn-press w-14 h-12 rounded-xl bg-slate-900 text-white font-bold text-2xl flex items-center justify-center shadow-xs hover:bg-slate-800 active:bg-sky-700">
+                            +
+                        </button>
+                    </div>
+                `;
+
+                if (isSubItem) {
+                    groupOpacEl.appendChild(row);
+                } else {
+                    groupMainEl.appendChild(row);
+                }
+            });
+
+            updateTotals();
+        }
+
+        /**
+         * Aggiorna un singolo contatore (+1 o -1) senza scendere mai sotto zero.
+         */
+        function updateCounter(id, delta) {
+            const current = counts[id] || 0;
+            const next = Math.max(0, current + delta);
+            if (next === current) return;
+
+            counts[id] = next;
+            saveCounts();
+
+            // Aggiorna valore numerico e animazione
+            const valEl = document.getElementById(`val-${id}`);
+            if (valEl) {
+                valEl.textContent = next;
+                valEl.classList.remove('animate-pop');
+                void valEl.offsetWidth; // Forza reflow per riavviare l'animazione
+                valEl.classList.add('animate-pop');
+            }
+
+            // Abilita/disabilita pulsante meno
+            const minusBtn = document.querySelector(`.counter-btn[data-id="${id}"][data-delta="-1"]`);
+            if (minusBtn) {
+                minusBtn.disabled = (next === 0);
+            }
+
+            // Leggera vibrazione tattile su smartphone supportati
+            if (navigator.vibrate) {
+                navigator.vibrate(12);
+            }
+
+            updateTotals();
+        }
+
+        /**
+         * Ricalcola il subtotale "In OPAC BNCF" e il Totale Generale.
+         */
+        function updateTotals() {
+            let opacSubtotal = 0;
+            let grandTotal = 0;
+
+            CATEGORIES.forEach(cat => {
+                const v = counts[cat.id] || 0;
+                grandTotal += v;
+                if (cat.group === 'opac_bncf') {
+                    opacSubtotal += v;
+                }
+            });
+
+            document.getElementById('opac-bncf-subtotal').textContent = opacSubtotal;
+            document.getElementById('grand-total').textContent = grandTotal;
+        }
+
+        /**
+         * Esporta i conteggi in un file CSV compatibile con Excel e LibreOffice Calc.
+         */
+        function exportToCSV() {
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            const filename = `contatori_bncf_${yyyy}-${mm}-${dd}.csv`;
+
+            let opacSubtotal = 0;
+            let grandTotal = 0;
+
+            const lines = ['Categoria;Conteggio'];
+            CATEGORIES.forEach(cat => {
+                const val = counts[cat.id] || 0;
+                lines.push(`"${cat.csvName}";${val}`);
+                grandTotal += val;
+                if (cat.group === 'opac_bncf') opacSubtotal += val;
+            });
+
+            lines.push('');
+            lines.push(`"Subtotale In OPAC BNCF";${opacSubtotal}`);
+            lines.push(`"TOTALE GENERALE";${grandTotal}`);
+
+            // Aggiunge BOM UTF-8 per mantenere corrette le eventuali lettere accentate in Excel
+            const csvContent = '\uFEFF' + lines.join('\r\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            showToast(`Esportato: ${filename}`);
+        }
+
+        /**
+         * Gestisce la selezione del file CSV per il ripristino dei contatori.
+         */
+        function handleCSVFileSelect(event) {
+            const file = event.target.files && event.target.files[0];
+            event.target.value = ''; // Permette di riselezionare lo stesso file in seguito
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const text = e.target.result;
+                    const parsedCounts = parseCSVData(text);
+                    openImportModal(file.name, parsedCounts);
+                } catch (err) {
+                    showToast(err.message || 'File CSV non valido', true);
+                }
+            };
+            reader.onerror = () => showToast('Errore nella lettura del file', true);
+            reader.readAsText(file, 'UTF-8');
+        }
+
+        /**
+         * Estrae i valori delle 7 categorie da un testo CSV (separato da ; oppure ,).
+         */
+        function parseCSVData(rawText) {
+            const cleanText = rawText.replace(/^\uFEFF/, '').trim();
+            if (!cleanText) throw new Error('Il file CSV è vuoto');
+
+            const lines = cleanText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+            const extracted = {};
+            let matchedCount = 0;
+
+            // Mappa di ricerca normalizzata
+            const lookup = {};
+            CATEGORIES.forEach(cat => {
+                lookup[cat.csvName.toLowerCase()] = cat.id;
+                lookup[cat.label.toLowerCase()] = cat.id;
+            });
+
+            lines.forEach(line => {
+                const separator = line.includes(';') ? ';' : ',';
+                const parts = line.split(separator).map(p => p.replace(/^"|"$/g, '').trim());
+                if (parts.length < 2) return;
+
+                const nameKey = parts[0].toLowerCase();
+                const valNum = parseInt(parts[1], 10);
+
+                if (lookup[nameKey] && !isNaN(valNum) && valNum >= 0) {
+                    extracted[lookup[nameKey]] = valNum;
+                    matchedCount++;
+                }
+            });
+
+            if (matchedCount === 0) {
+                throw new Error('Nessuna categoria BNCF riconosciuta nel CSV');
+            }
+
+            // Completa eventuali categorie mancanti con il valore attuale
+            const result = {};
+            CATEGORIES.forEach(cat => {
+                result[cat.id] = (extracted[cat.id] !== undefined) ? extracted[cat.id] : (counts[cat.id] || 0);
+            });
+            return result;
+        }
+
+        function openImportModal(filename, newCounts) {
+            pendingImportCounts = newCounts;
+            document.getElementById('import-filename').textContent = filename;
+
+            const listEl = document.getElementById('import-preview-list');
+            listEl.innerHTML = '';
+
+            let oldTotal = 0;
+            let newTotal = 0;
+
+            CATEGORIES.forEach(cat => {
+                const oldVal = counts[cat.id] || 0;
+                const newVal = newCounts[cat.id] || 0;
+                oldTotal += oldVal;
+                newTotal += newVal;
+
+                const changed = oldVal !== newVal;
+                const row = document.createElement('div');
+                row.className = 'grid grid-cols-12 px-3 py-2 items-center bg-white';
+                row.innerHTML = `
+                    <div class="col-span-6 text-slate-700 font-medium truncate pr-2" title="${cat.csvName}">${cat.label}</div>
+                    <div class="col-span-3 text-right text-slate-500 tabular-nums">${oldVal}</div>
+                    <div class="col-span-3 text-right font-bold tabular-nums ${changed ? 'text-sky-600' : 'text-slate-700'}">${newVal}</div>
+                `;
+                listEl.appendChild(row);
+            });
+
+            // Riga finale di confronto totale
+            const totalRow = document.createElement('div');
+            totalRow.className = 'grid grid-cols-12 px-3 py-2.5 items-center bg-slate-100 font-bold text-slate-900';
+            totalRow.innerHTML = `
+                <div class="col-span-6">Totale Generale</div>
+                <div class="col-span-3 text-right text-slate-600 tabular-nums">${oldTotal}</div>
+                <div class="col-span-3 text-right text-sky-700 tabular-nums">${newTotal}</div>
+            `;
+            listEl.appendChild(totalRow);
+
+            const modal = document.getElementById('import-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeImportModal() {
+            pendingImportCounts = null;
+            const modal = document.getElementById('import-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function confirmImportCSV() {
+            if (!pendingImportCounts) return;
+            counts = { ...pendingImportCounts };
+            saveCounts();
+            renderUI();
+            closeImportModal();
+            showToast('Contatori ripristinati dal file CSV');
+        }
+
+        /**
+         * Gestione Modale Reset
+         */
+        function openResetModal() {
+            const modal = document.getElementById('reset-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeResetModal() {
+            const modal = document.getElementById('reset-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function resetAllCounters() {
+            CATEGORIES.forEach(cat => { counts[cat.id] = 0; });
+            saveCounts();
+            renderUI();
+            closeResetModal();
+            showToast('Tutti i contatori sono stati azzerati');
+        }
+
+        /**
+         * Mostra un messaggio rapido (Toast) in alto.
+         */
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const dot = document.getElementById('toast-dot');
+            const msgEl = document.getElementById('toast-message');
+
+            msgEl.textContent = message;
+            dot.className = isError
+                ? 'w-2 h-2 rounded-full bg-rose-400 shrink-0'
+                : 'w-2 h-2 rounded-full bg-emerald-400 shrink-0';
+
+            toast.classList.remove('opacity-0');
+            toast.classList.add('opacity-100');
+
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0');
+            }, 2800);
+        }
+
+        /**
+         * Inizializzazione PWA: crea Manifest dinamico con icona vettoriale,
+         * registra Service Worker per il caching offline completo e gestisce il prompt di installazione.
+         */
+        function setupPWA() {
+            // Solo su protocolli web (http/https)
+            if (!window.location.protocol.startsWith('http')) return;
+
+            // 1. Icona SVG integrata per la schermata Home di Android
+            const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                <rect width="512" height="512" rx="112" fill="#0f172a"/>
+                <rect x="64" y="64" width="384" height="384" rx="80" fill="#1e293b" stroke="#334155" stroke-width="8"/>
+                <text x="256" y="235" font-family="sans-serif" font-size="110" font-weight="800" fill="#34d399" text-anchor="middle">+1</text>
+                <text x="256" y="345" font-family="sans-serif" font-size="68" font-weight="700" fill="#f8fafc" text-anchor="middle">BNCF</text>
+            </svg>`;
+            const iconUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgIcon);
+
+            // Aggiunge icona Apple/Android
+            const appleIcon = document.createElement('link');
+            appleIcon.rel = 'apple-touch-icon';
+            appleIcon.href = iconUrl;
+            document.head.appendChild(appleIcon);
+
+            // 2. Web App Manifest dinamico (rende l'app installabile a schermo intero senza barra browser)
+            const manifest = {
+                name: 'Contatori BNCF',
+                short_name: 'Contatori BNCF',
+                description: 'Conteggio rapido per catalogazione e verifica OPAC BNCF',
+                start_url: window.location.href,
+                scope: window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1),
+                display: 'standalone',
+                orientation: 'portrait',
+                background_color: '#f4f6f8',
+                theme_color: '#0f172a',
+                icons: [
+                    {
+                        src: iconUrl,
+                        sizes: '512x512',
+                        type: 'image/svg+xml',
+                        purpose: 'any maskable'
+                    }
+                ]
+            };
+
+            const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+            const manifestLink = document.createElement('link');
+            manifestLink.rel = 'manifest';
+            manifestLink.href = URL.createObjectURL(manifestBlob);
+            document.head.appendChild(manifestLink);
+
+            // 3. Service Worker inline per salvare pagina e Tailwind CSS in cache offline
+            if ('serviceWorker' in navigator) {
+                const swCode = `
+                    const CACHE_NAME = 'contatori-bncf-pwa-v1';
+                    const APP_URL = ${JSON.stringify(window.location.href)};
+                    const TAILWIND_URL = 'https://cdn.tailwindcss.com';
+
+                    self.addEventListener('install', (event) => {
+                        event.waitUntil(
+                            caches.open(CACHE_NAME).then((cache) => {
+                                return Promise.allSettled([
+                                    cache.add(APP_URL),
+                                    cache.add(TAILWIND_URL)
+                                ]);
+                            }).then(() => self.skipWaiting())
+                        );
+                    });
+
+                    self.addEventListener('activate', (event) => {
+                        event.waitUntil(
+                            caches.keys().then((keys) => Promise.all(
+                                keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+                            )).then(() => self.clients.claim())
+                        );
+                    });
+
+                    self.addEventListener('fetch', (event) => {
+                        if (event.request.method !== 'GET') return;
+                        event.respondWith(
+                            caches.match(event.request).then((cachedResponse) => {
+                                if (cachedResponse) {
+                                    // Aggiorna la cache in background se c'è rete
+                                    fetch(event.request).then((networkResponse) => {
+                                        if (networkResponse && networkResponse.ok) {
+                                            caches.open(CACHE_NAME).then(c => c.put(event.request, networkResponse));
+                                        }
+                                    }).catch(() => {});
+                                    return cachedResponse;
+                                }
+                                return fetch(event.request).then((networkResponse) => {
+                                    if (networkResponse && networkResponse.ok) {
+                                        const clone = networkResponse.clone();
+                                        caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
+                                    }
+                                    return networkResponse;
+                                });
+                            })
+                        );
+                    });
+                `;
+
+                const swBlob = new Blob([swCode], { type: 'application/javascript' });
+                const swUrl = URL.createObjectURL(swBlob);
+
+                navigator.serviceWorker.register(swUrl)
+                    .then(() => {
+                        const badge = document.getElementById('offline-badge');
+                        if (badge) badge.classList.remove('hidden');
+                    })
+                    .catch(err => console.warn('Service Worker non registrato:', err));
+            }
+
+            // 4. Gestione pulsante nativo "Installa App" su Chrome Android
+            const installBtn = document.getElementById('btn-install-pwa');
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                deferredInstallPrompt = e;
+                if (installBtn) {
+                    installBtn.classList.remove('hidden');
+                    installBtn.classList.add('flex');
+                }
+            });
+
+            if (installBtn) {
+                installBtn.addEventListener('click', async () => {
+                    if (!deferredInstallPrompt) return;
+                    deferredInstallPrompt.prompt();
+                    const { outcome } = await deferredInstallPrompt.userChoice;
+                    if (outcome === 'accepted') {
+                        installBtn.classList.add('hidden');
+                        installBtn.classList.remove('flex');
+                    }
+                    deferredInstallPrompt = null;
+                });
+            }
+
+            window.addEventListener('appinstalled', () => {
+                if (installBtn) {
+                    installBtn.classList.add('hidden');
+                    installBtn.classList.remove('flex');
+                }
+                showToast('App installata nella schermata Home!');
+            });
+        }
+
+        /**
+         * Inizializzazione eventi e avvio applicazione.
+         */
+        document.addEventListener('DOMContentLoaded', () => {
+            setupPWA();
+            loadCounts();
+            renderUI();
+
+            // Event delegation per i pulsanti +1 e -1
+            document.querySelector('main').addEventListener('click', (e) => {
+                const btn = e.target.closest('.counter-btn');
+                if (!btn || btn.disabled) return;
+
+                const id = btn.getAttribute('data-id');
+                const delta = parseInt(btn.getAttribute('data-delta'), 10);
+                updateCounter(id, delta);
+            });
+
+            // Pulsante Esporta CSV
+            document.getElementById('btn-export-csv').addEventListener('click', exportToCSV);
+
+            // Pulsanti e input per Importa CSV
+            const csvInput = document.getElementById('csv-file-input');
+            document.getElementById('btn-import-csv').addEventListener('click', () => {
+                csvInput.click();
+            });
+            csvInput.addEventListener('change', handleCSVFileSelect);
+            document.getElementById('btn-import-cancel').addEventListener('click', closeImportModal);
+            document.getElementById('btn-import-confirm').addEventListener('click', confirmImportCSV);
+
+            // Pulsanti Modale Reset
+            document.getElementById('btn-reset-open').addEventListener('click', openResetModal);
+            document.getElementById('btn-reset-cancel').addEventListener('click', closeResetModal);
+            document.getElementById('btn-reset-confirm').addEventListener('click', resetAllCounters);
+
+            // Chiusura modali cliccando sullo sfondo scuro
+            document.getElementById('reset-modal').addEventListener('click', (e) => {
+                if (e.target.id === 'reset-modal') {
+                    closeResetModal();
+                }
+            });
+            document.getElementById('import-modal').addEventListener('click', (e) => {
+                if (e.target.id === 'import-modal') {
+                    closeImportModal();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
