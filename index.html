@@ -66,7 +66,7 @@
                     </svg>
                     <span>Installa</span>
                 </button>
-                <div class="bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-1.5 text-right">
+                <div class="bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-1.5 text-right" title="Esclude la voce In OPAC">
                     <span class="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Totale Generale</span>
                     <span id="grand-total" class="text-2xl font-extrabold text-emerald-400 tabular-nums leading-none">0</span>
                 </div>
@@ -216,12 +216,13 @@
     <script>
         /**
          * Configurazione delle 7 categorie esattamente nell'ordine della schermata richiesta.
+         * Nota: 'in_opac' ha excludeFromTotal: true così non viene conteggiato nel Totale Generale.
          */
         const CATEGORIES = [
             { id: 'opac_bncf_collocazione', label: 'con collocazione', group: 'opac_bncf', csvName: 'In OPAC BNCF - con collocazione' },
             { id: 'opac_bncf_mancanti', label: 'con collocazione e mancanti', group: 'opac_bncf', csvName: 'In OPAC BNCF - con collocazione e mancanti' },
             { id: 'opac_bncf_senza', label: 'senza collocazione', group: 'opac_bncf', csvName: 'In OPAC BNCF - senza collocazione' },
-            { id: 'in_opac', label: 'In OPAC', group: 'main', csvName: 'In OPAC' },
+            { id: 'in_opac', label: 'In OPAC', group: 'main', csvName: 'In OPAC', excludeFromTotal: true },
             { id: 'in_cartaceo', label: 'In cartaceo', group: 'main', csvName: 'In cartaceo' },
             { id: 'in_magliabechiano', label: 'In magliabechiano', group: 'main', csvName: 'In magliabechiano' },
             { id: 'sconosciuti', label: 'Sconosciuti', group: 'main', csvName: 'Sconosciuti' }
@@ -286,6 +287,7 @@
                             ${isSubItem ? '<span class="text-slate-400 font-bold text-sm">–</span>' : ''}
                             <span class="text-[15px] sm:text-base font-bold text-slate-800 leading-snug break-words">${cat.label}</span>
                         </div>
+                        ${cat.excludeFromTotal ? '<span class="block text-[11px] text-slate-400 font-medium mt-0.5">Escluso dal totale generale</span>' : ''}
                     </div>
                     <div class="flex items-center gap-2.5 shrink-0">
                         <button type="button"
@@ -293,7 +295,7 @@
                             data-delta="-1"
                             aria-label="Diminuisci ${cat.label}"
                             ${val === 0 ? 'disabled' : ''}
-                            class="counter-btn btn-press w-12 h-12 rounded-xl border border-slate-200 bg-slate-100 text-slate-700 font-bold text-xl flex items-center justify-center hover:bg-slate-200 disabled:opacity-35 disabled:pointer-events-none">
+                            class="counter-btn btn-press w-12 h-12 rounded-xl bg-rose-600 text-white font-bold text-xl flex items-center justify-center shadow-xs hover:bg-rose-700 active:bg-rose-800 disabled:opacity-30 disabled:pointer-events-none">
                             −
                         </button>
 
@@ -305,7 +307,7 @@
                             data-id="${cat.id}"
                             data-delta="1"
                             aria-label="Aumenta ${cat.label}"
-                            class="counter-btn btn-press w-14 h-12 rounded-xl bg-slate-900 text-white font-bold text-2xl flex items-center justify-center shadow-xs hover:bg-slate-800 active:bg-sky-700">
+                            class="counter-btn btn-press w-14 h-12 rounded-xl bg-emerald-600 text-white font-bold text-2xl flex items-center justify-center shadow-xs hover:bg-emerald-700 active:bg-emerald-800">
                             +
                         </button>
                     </div>
@@ -356,7 +358,7 @@
         }
 
         /**
-         * Ricalcola il subtotale "In OPAC BNCF" e il Totale Generale.
+         * Ricalcola il subtotale "In OPAC BNCF" e il Totale Generale (escludendo "In OPAC").
          */
         function updateTotals() {
             let opacSubtotal = 0;
@@ -364,7 +366,9 @@
 
             CATEGORIES.forEach(cat => {
                 const v = counts[cat.id] || 0;
-                grandTotal += v;
+                if (!cat.excludeFromTotal) {
+                    grandTotal += v;
+                }
                 if (cat.group === 'opac_bncf') {
                     opacSubtotal += v;
                 }
@@ -391,13 +395,15 @@
             CATEGORIES.forEach(cat => {
                 const val = counts[cat.id] || 0;
                 lines.push(`"${cat.csvName}";${val}`);
-                grandTotal += val;
+                if (!cat.excludeFromTotal) {
+                    grandTotal += val;
+                }
                 if (cat.group === 'opac_bncf') opacSubtotal += val;
             });
 
             lines.push('');
             lines.push(`"Subtotale In OPAC BNCF";${opacSubtotal}`);
-            lines.push(`"TOTALE GENERALE";${grandTotal}`);
+            lines.push(`"TOTALE GENERALE (escluso In OPAC)";${grandTotal}`);
 
             // Aggiunge BOM UTF-8 per mantenere corrette le eventuali lettere accentate in Excel
             const csvContent = '\uFEFF' + lines.join('\r\n');
@@ -494,8 +500,10 @@
             CATEGORIES.forEach(cat => {
                 const oldVal = counts[cat.id] || 0;
                 const newVal = newCounts[cat.id] || 0;
-                oldTotal += oldVal;
-                newTotal += newVal;
+                if (!cat.excludeFromTotal) {
+                    oldTotal += oldVal;
+                    newTotal += newVal;
+                }
 
                 const changed = oldVal !== newVal;
                 const row = document.createElement('div');
