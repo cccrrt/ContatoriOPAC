@@ -1,4 +1,15 @@
-// ... existing code ...
+{
+  "id": "/ContatoriOPAC/",
+  "name": "Contatori BNCF",
+  "short_name": "Contatori BNCF",
+  "description": "Conteggio rapido offline per catalogazione e verifica OPAC BNCF",
+  "start_url": "/ContatoriOPAC/index.html",
+  "scope": "/ContatoriOPAC/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f6f8",
+  "theme_color": "#0f172a",
+  "lang": "it",
   "categories": ["utilities", "productivity"],
   "icons": [
     {
